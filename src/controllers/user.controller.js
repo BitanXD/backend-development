@@ -39,7 +39,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   //checking for existing user
-  const existedUser = User.findOne({
+  const existedUser = await User.findOne({
     $or: [{ userName }, { email }],
   });
   if (existedUser) {
@@ -48,7 +48,18 @@ const registerUser = asyncHandler(async (req, res) => {
 
   //checking for avatar and cover image local file path valid or not
   const avatarLocalPath = req.files?.avatar[0]?.path;
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
+  // const coverImageLocalPath = req.files?.coverImage[0]?.path;
+  //cannto read properties of undefined (error '0) - this error occurs because we have not handled the case where the user do not wish to upload a coverimage and we need to define it with empty string from cloudinary.
+
+  //resolved the scope issue
+  let coverImageLocalPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
+    coverImageLocalPath = req.files.coverImage[0].path;
+  }
 
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar file is required");
@@ -61,7 +72,7 @@ const registerUser = asyncHandler(async (req, res) => {
   if (!avatar) {
     throw new ApiError(400, "Avatar file is required");
   }
-
+  // user object creation
   const user = await User.create({
     fullName,
     avatar: avatar.url,
@@ -71,18 +82,19 @@ const registerUser = asyncHandler(async (req, res) => {
     userName: userName.toLowerCase(),
   });
 
+  // remove password and refresh token
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
-  )
-  if(!createdUser){
-    throw new ApiError(500, "Something went wrong while registering the user")
+  );
+
+  // check for error while creating user
+  if (!createdUser) {
+    throw new ApiError(500, "Something went wrong while registering the user");
   }
 
-  return res.status(201).json(
-    new ApiResponse(200, createdUser, "User Registered Successfully !")
-  )
+  return res
+    .status(201)
+    .json(new ApiResponse(200, createdUser, "User Registered Successfully !"));
 });
-
-
 
 export { registerUser };
